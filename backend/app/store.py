@@ -14,12 +14,29 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        self._seed_pavement_grades()
+
+    def _seed_pavement_grades(self) -> None:
+        """种子路面记录按固化规则的当前版本补一次首评，启动即有分档与依据可查。"""
+        from app.services.grading_engine import apply_grading
+        from app.services.grading_rules import registry
+
+        for row in self._tables.get("pavement", []):
+            if not row.get("grading_history"):
+                apply_grading(row, registry.current(), trigger="历史数据初始评定")
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
+
+    def reset(self) -> None:
+        """恢复到种子数据并重跑路面首评（测试用）。"""
+        self._tables = {
+            name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
+        }
+        self._seed_pavement_grades()
 
     def find(self, module: str, entry_id: int) -> dict[str, Any] | None:
         for row in self.rows(module):
